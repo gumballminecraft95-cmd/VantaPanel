@@ -2,124 +2,425 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>VantaPanel - Core Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VantaEnterprise // Cloud Server Management</title>
     <style>
-        body { background-color: #0b0b0f; color: #e1e1e6; font-family: monospace; margin: 0; padding: 20px; }
-        .container { max-width: 900px; margin: 0 auto; background: #121218; padding: 30px; border-radius: 8px; border: 1px solid #272730; box-shadow: 0 0 20px rgba(0,0,0,0.8); }
-        h1, h2 { color: #00ffcc; text-shadow: 0 0 10px rgba(0,255,204,0.3); }
-        input, select, textarea { width: 100%; padding: 10px; margin: 10px 0; background: #181820; border: 1px solid #333; color: #fff; border-radius: 4px; }
-        button { background: #00ffcc; color: #000; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; transition: 0.2s; }
-        button:hover { background: #00cca3; box-shadow: 0 0 10px #00ffcc; }
-        .card { background: #181822; padding: 15px; margin: 10px 0; border-radius: 6px; border-left: 4px solid #00ffcc; }
-        pre { background: #000; padding: 15px; color: #00ff00; border-radius: 5px; height: 150px; overflow-y: scroll; }
-        .hidden { display: none; }
+        :root {
+            --bg-deep: #050507;
+            --bg-card: #0e0e14;
+            --bg-glass: rgba(14, 14, 20, 0.75);
+            --border-color: #21212e;
+            --accent-cyan: #00ffcc;
+            --accent-red: #ff3355;
+            --text-main: #f1f1f6;
+            --text-muted: #8a8a9e;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; }
+
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(0, 255, 204, 0.03) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(255, 51, 85, 0.03) 0%, transparent 40%);
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 30px; }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 5px rgba(0,255,204,0.2); }
+            50% { box-shadow: 0 0 20px rgba(0,255,204,0.6); }
+            100% { box-shadow: 0 0 5px rgba(0,255,204,0.2); }
+        }
+
+        .animated { animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        /* Glassmorphism Auth */
+        .auth-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 85vh;
+        }
+
+        .auth-card {
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            padding: 40px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 450px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+            animation: pulseGlow 4s infinite;
+        }
+
+        .auth-card h2 {
+            color: var(--accent-cyan);
+            margin-bottom: 25px;
+            font-size: 24px;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 13px; }
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            background: #09090e;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            border-radius: 6px;
+            outline: none;
+            transition: 0.3s;
+        }
+        .form-control:focus { border-color: var(--accent-cyan); box-shadow: 0 0 10px rgba(0,255,204,0.2); }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: var(--accent-cyan);
+            color: #000;
+            border: none;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .btn:hover { background: #00cca3; box-shadow: 0 0 15px rgba(0,255,204,0.5); transform: translateY(-2px); }
+        .btn-alt { background: transparent; color: var(--accent-cyan); border: 1px solid var(--accent-cyan); margin-top: 10px; }
+        .btn-alt:hover { background: rgba(0,255,204,0.1); }
+
+        /* Dashboard Layout */
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        .dashboard-header h1 { color: var(--accent-cyan); font-size: 22px; text-shadow: 0 0 10px rgba(0,255,204,0.3); }
+
+        .servers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .server-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 20px;
+            position: relative;
+            transition: 0.3s;
+        }
+        .server-card:hover { border-color: var(--accent-cyan); box-shadow: 0 5px 25px rgba(0,0,0,0.6); }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .status-online { background: rgba(0,255,204,0.15); color: var(--accent-cyan); border: 1px solid var(--accent-cyan); }
+        .status-offline { background: rgba(255,51,85,0.15); color: var(--accent-red); border: 1px solid var(--accent-red); }
+
+        .server-stats {
+            display: flex;
+            justify-content: space-between;
+            margin: 15px 0;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .console-box {
+            background: #020204;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            height: 350px;
+            overflow-y: scroll;
+            color: var(--accent-cyan);
+            font-size: 13px;
+            line-height: 1.5;
+            margin-top: 20px;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.9);
+        }
+
+        .console-input-group {
+            display: flex;
+            margin-top: 10px;
+        }
+        .console-input-group input {
+            flex-grow: 1;
+            padding: 10px;
+            background: #09090e;
+            border: 1px solid var(--border-color);
+            color: #fff;
+            border-radius: 0 6px 6px 0;
+            outline: none;
+        }
+        .console-input-group button {
+            width: 100px;
+            border-radius: 6px 0 0 6px;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5,5,7,0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 30px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .hidden { display: none !important; }
+        .flex-row { display: flex; gap: 10px; }
     </style>
 </head>
 <body>
+
     <div class="container">
-        <h1>VantaPanel // WORM Architecture</h1>
-        
-        <!-- قسم تسجيل الدخول / التسجيل -->
-        <div id="auth-section">
-            <h2>تسجيل الدخول / إنشاء حساب</h2>
-            <input type="text" id="username" placeholder="اسم المستخدم">
-            <input type="password" id="password" placeholder="كلمة المرور">
-            <button onclick="login()">دخول</button>
-            <button onclick="register()" style="background:#333; color:#fff;">تسجيل حساب جديد</button>
+        <!-- Auth View -->
+        <div id="auth-view" class="auth-wrapper animated">
+            <div class="auth-card">
+                <h2 id="auth-title">Vanta // Login</h2>
+                <div class="form-group">
+                    <label>اسم المستخدم</label>
+                    <input type="text" id="username" class="form-control" placeholder="أدخل اسم المستخدم...">
+                </div>
+                <div class="form-group">
+                    <label>كلمة المرور</label>
+                    <input type="password" id="password" class="form-control" placeholder="••••••••••••">
+                </div>
+                <button class="btn" id="auth-btn" onclick="handleAuth()">دخول النظام</button>
+                <button class="btn btn-alt" onclick="toggleAuthMode()">إنشاء حساب جديد</button>
+            </div>
         </div>
 
-        <!-- لوحة التحكم الرئيسية -->
-        <div id="dashboard-section" class="hidden">
-            <h2>لوحة العمليات والسكربتات</h2>
-            <button onclick="toggleNewModal()">+ New Script Instance</button>
-            
-            <div id="new-modal" class="hidden" style="margin-top:20px; border:1px dashed #444; padding:15px;">
-                <h3>إنشاء سكربت جديد</h3>
-                <input type="text" id="script-name" placeholder="اسم السكربت (مثال: DiscordBot)">
-                <select id="script-type">
-                    <option value="python">Python</option>
-                    <option value="node">Node.js</option>
-                </select>
-                <textarea id="script-code" rows="5" placeholder="اكتب الكود هنا..."></textarea>
-                <button onclick="createServer()">حفظ وتشغيل</button>
+        <!-- Dashboard View -->
+        <div id="dashboard-view" class="hidden animated">
+            <div class="dashboard-header">
+                <h1>VantaEnterprise Core // لوحة التحكم المركزية</h1>
+                <div>
+                    <button class="btn" style="width: auto; padding: 8px 15px;" onclick="openCreateModal()">+ إنشاء سيرفر جديد</button>
+                    <button class="btn btn-alt" style="width: auto; padding: 8px 15px; margin-right: 10px;" onclick="logout()">خروج</button>
+                </div>
             </div>
 
-            <div id="instances-list" style="margin-top: 20px;"></div>
+            <div id="servers-container" class="servers-grid">
+                <!-- Servers rendered dynamically -->
+            </div>
+
+            <!-- Active Server Management Console View -->
+            <div id="management-section" class="server-card hidden animated">
+                <h3 id="active-server-title" style="color: var(--accent-cyan); margin-bottom: 15px;">إدارة السيرفر: --</h3>
+                <div class="flex-row" style="margin-bottom: 15px;">
+                    <button class="btn" style="background: var(--accent-cyan);" onclick="sendPower('start')">تشغيل (Start)</button>
+                    <button class="btn" style="background: #ffaa00; color: #000;" onclick="sendPower('restart')">إعادة تشغيل</button>
+                    <button class="btn" style="background: var(--accent-red); color: #fff;" onclick="sendPower('stop')">إيقاف (Stop)</button>
+                </div>
+                <div id="console-output" class="console-box">جاري تحميل سجلات السيرفر الحية...</div>
+                <div class="console-input-group">
+                    <button class="btn" onclick="sendConsoleCommand()">إرسال</button>
+                    <input type="text" id="console-cmd-input" placeholder="اكتب أمراً هنا...">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Server Modal -->
+    <div id="create-modal" class="modal hidden">
+        <div class="modal-content animated">
+            <h2 style="color: var(--accent-cyan); margin-bottom: 20px;">إنشاء سيرفر استضافة جديد</h2>
+            <div class="form-group">
+                <label>اسم السيرفر</label>
+                <input type="text" id="srv-name" class="form-control" value="PixelCore-Node">
+            </div>
+            <div class="form-group">
+                <label>نوع البيئة</label>
+                <select id="srv-type" class="form-control">
+                    <option value="node">Node.js Environment</option>
+                    <option value="python">Python Environment</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>الكود البرمجي الأولي</label>
+                <textarea id="srv-code" class="form-control" rows="5" placeholder="اكتب كود السيرفر هنا..."></textarea>
+            </div>
+            <div class="flex-row">
+                <button class="btn" onclick="createServerSubmit()">تأكيد و إنشاء</button>
+                <button class="btn btn-alt" onclick="closeCreateModal()">إلغاء</button>
+            </div>
         </div>
     </div>
 
     <script>
-        async function register() {
-            let u = document.getElementById('username').value;
-            let p = document.getElementById('password').value;
-            let res = await fetch('/api/register', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: u, password: p}) });
+        let isRegisterMode = false;
+        let currentServerId = null;
+        let ws = null;
+
+        async function checkSession() {
+            let res = await fetch('/api/auth/session');
             let data = await res.json();
-            if(data.success) alert('تم التسجيل بنجاح، سجل دخولك الآن');
-            else alert(data.error);
+            if (data.loggedIn) {
+                document.getElementById('auth-view').classList.add('hidden');
+                document.getElementById('dashboard-view').classList.remove('hidden');
+                loadServers();
+            }
+        }
+        checkSession();
+
+        function toggleAuthMode() {
+            isRegisterMode = !isRegisterMode;
+            document.getElementById('auth-title').innerText = isRegisterMode ? "Vanta // Register" : "Vanta // Login";
+            document.getElementById('auth-btn').innerText = isRegisterMode ? "تسجيل حساب جديد" : "دخول النظام";
         }
 
-        async function login() {
-            let u = document.getElementById('username').value;
-            let p = document.getElementById('password').value;
-            let res = await fetch('/api/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: u, password: p}) });
-            let data = await res.json();
-            if(data.success) {
-                document.getElementById('auth-section').classList.add('hidden');
-                document.getElementById('dashboard-section').classList.remove('hidden');
-                loadInstances();
-            } else alert(data.error);
-        }
+        async function handleAuth() {
+            let username = document.getElementById('username').value;
+            let password = document.getElementById('password').value;
+            let endpoint = isRegisterMode ? '/api/auth/register' : '/api/auth/login';
 
-        function toggleNewModal() {
-            let m = document.getElementById('new-modal');
-            m.classList.toggle('hidden');
-        }
-
-        async function createServer() {
-            let name = document.getElementById('script-name').value;
-            let type = document.getElementById('script-type').value;
-            let code = document.getElementById('script-code').value;
-            
-            let res = await fetch('/api/instances/new', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, script_type: type, code}) });
+            let res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
             let data = await res.json();
-            if(data.success) {
-                toggleNewModal();
-                loadInstances();
+            if (data.success) {
+                if (isRegisterMode) {
+                    alert('تم التسجيل بنجاح، سجل دخولك الآن');
+                    toggleAuthMode();
+                } else {
+                    location.reload();
+                }
+            } else {
+                alert(data.error || 'حدث خطأ');
             }
         }
 
-        async function loadInstances() {
-            let res = await fetch('/api/instances');
-            let list = await res.json();
+        async function logout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            location.reload();
+        }
+
+        async function loadServers() {
+            let res = await fetch('/api/servers');
+            let servers = await res.json();
+            let container = document.getElementById('servers-container');
             let html = '';
-            list.forEach(inst => {
+            servers.forEach(srv => {
+                let badgeClass = srv.status === 'online' ? 'status-online' : 'status-offline';
                 html += `
-                    <div class="card">
-                        <h3>${inst.name} (${inst.script_type}) - الحالة: ${inst.status}</h3>
-                        <button onclick="startInst(${inst.id})" style="background:#00ffcc;">تشغيل</button>
-                        <button onclick="stopInst(${inst.id})" style="background:#ff3333; color:#fff;">إيقاف</button>
-                        <button onclick="fetchLogs(${inst.id})" style="background:#333; color:#fff;">تحديث السجلات</button>
-                        <pre id="logs-${inst.id}">اضغط تحديث لعرض المخرجات...</pre>
+                    <div class="server-card">
+                        <h3>${srv.name}</h3>
+                        <div class="server-stats">
+                            <span>النوع: ${srv.node_type.toUpperCase()}</span>
+                            <span class="status-badge ${badgeClass}">${srv.status}</span>
+                        </div>
+                        <div class="server-stats">
+                            <span>الذاكرة: 1024MB</span>
+                            <span>المعالج: 100%</span>
+                        </div>
+                        <button class="btn" style="margin-top: 10px;" onclick="manageServer(${srv.id}, '${srv.name}')">إدارة السيرفر</button>
                     </div>
                 `;
             });
-            document.getElementById('instances-list').innerHTML = html;
+            container.innerHTML = html || '<p style="color:var(--text-muted)">لا توجد سيرفرات نشطة حالياً. أنشئ سيرفرك الأول!</p>';
         }
 
-        async function startInst(id) {
-            await fetch(`/api/instances/${id}/start`, {method: 'POST'});
-            loadInstances();
-        }
+        function openCreateModal() { document.getElementById('create-modal').classList.remove('hidden'); }
+        function closeCreateModal() { document.getElementById('create-modal').classList.add('hidden'); }
 
-        async function stopInst(id) {
-            await fetch(`/api/instances/${id}/stop`, {method: 'POST'});
-            loadInstances();
-        }
+        async function createServerSubmit() {
+            let name = document.getElementById('srv-name').value;
+            let node_type = document.getElementById('srv-type').value;
+            let code = document.getElementById('srv-code').value;
 
-        async function fetchLogs(id) {
-            let res = await fetch(`/api/instances/${id}/logs`);
+            let res = await fetch('/api/servers/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, node_type, code })
+            });
             let data = await res.json();
-            document.getElementById(`logs-${id}`).innerText = data.logs;
+            if (data.success) {
+                closeCreateModal();
+                loadServers();
+            }
+        }
+
+        function manageServer(id, name) {
+            currentServerId = id;
+            document.getElementById('active-server-title').innerText = `إدارة السيرفر: ${name} (ID: ${id})`;
+            document.getElementById('management-section').classList.remove('hidden');
+            document.getElementById('console-output').innerText = "تم الاتصال بالخادم الداخلي...\n";
+
+            if (ws) ws.close();
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${proto}//${location.host}`);
+            
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ action: 'subscribe', serverId: id }));
+            };
+
+            ws.onmessage = (event) => {
+                let msg = JSON.parse(event.data);
+                let consoleBox = document.getElementById('console-output');
+                if (msg.type === 'log') {
+                    consoleBox.innerText += msg.data;
+                    consoleBox.scrollTop = consoleBox.scrollHeight;
+                } else if (msg.type === 'history') {
+                    consoleBox.innerText = msg.data;
+                    consoleBox.scrollTop = consoleBox.scrollHeight;
+                }
+            };
+        }
+
+        async function sendPower(action) {
+            if (!currentServerId) return;
+            let res = await fetch(`/api/servers/${currentServerId}/power`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action })
+            });
+            let data = await res.json();
+            loadServers();
+        }
+
+        function sendConsoleCommand() {
+            let input = document.getElementById('console-cmd-input');
+            if (!input.value || !ws) return;
+            ws.send(JSON.stringify({ action: 'command', serverId: currentServerId, command: input.value }));
+            input.value = '';
         }
     </script>
 </body>
