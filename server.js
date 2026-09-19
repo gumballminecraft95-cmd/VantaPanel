@@ -5,16 +5,20 @@ const sqlite3 = require('sqlite3').verbose();
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
+const WebSocket = require('ws');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 
-// قاعدة البيانات المحلية للمستخدمين والسكربتات
-const db = new sqlite3.Database('./vanta.db');
+const PORT = process.env.PORT || 3000;
+const dbFile = path.join(__dirname, 'vanta_core.db');
+const db = new sqlite3.Database(dbFile);
 
 db.serialize(() => {
-    db.run("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT)");
-    db.run("CREATE TABLE IF NOT EXISTS instances (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, script_type TEXT, filename TEXT, status TEXT)");
+    db.run("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, role TEXT)");
+    db.run("CREATE TABLE IF NOT EXISTS servers (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, node_type TEXT, memory TEXT, cpu TEXT, status TEXT, filename TEXT)");
 });
 
 app.use(express.urlencoded({ extended: true }));
@@ -22,135 +26,159 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(session({
-    secret: 'vanta_secret_key_999',
+    secret: 'vanta_supreme_architecture_999_secure_key',
     resave: false,
-    saveUninitialized: false
+    saveUninitialized: false,
+    cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-// تخزين العمليات الجارية (Processes)
 const activeProcesses = {};
 
-// --- مسارات المصادقة ---
-app.post('/api/register', async (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
     const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: "جميع الحقول مطلوبة" });
     try {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        db.run("INSERT INTO users (username, password) VALUES (?, ?)", [username, hashedPassword], (err) => {
-            if (err) return res.status(400).json({ error: "المستخدم موجود مسبقاً" });
-            res.json({ success: true });
+        const hashedPassword = await bcrypt.hash(password, 12);
+        db.run("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", [username, hashedPassword, 'admin'], (err) => {
+            if (err) return res.status(400).json({ error: "اسم المستخدم مستخدم مسبقاً" });
+            res.json({ success: true, message: "تم إنشاء الحساب بنجاح" });
         });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/api/auth/login', (req, res) => {
     const { username, password } = req.body;
     db.get("SELECT * FROM users WHERE username = ?", [username], async (err, user) => {
-        if (err || !user) return res.status(400).json({ error: "بيانات الدخول غير صحيحة" });
+        if (err || !user) return res.status(400).json({ error: "بيانات الدخول غير صالحة" });
         const match = await bcrypt.compare(password, user.password);
         if (!match) return res.status(400).json({ error: "كلمة المرور غير صحيحة" });
         
         req.session.userId = user.id;
         req.session.username = user.username;
-        res.json({ success: true });
+        req.session.role = user.role;
+        res.json({ success: true, username: user.username });
     });
 });
 
-app.get('/api/logout', (req, res) => {
-    req.session.destroy();
-    res.redirect('/');
+app.get('/api/auth/session', (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ loggedIn: false });
+    res.json({ loggedIn: true, username: req.session.username, role: req.session.role });
 });
 
-// --- لوحة التحكم وإدارة السكربتات ---
-app.get('/api/instances', (req, res) => {
+app.post('/api/auth/logout', (req, res) => {
+    req.session.destroy();
+    res.json({ success: true });
+});
+
+app.get('/api/servers', (req, res) => {
     if (!req.session.userId) return res.status(401).json({ error: "غير مصرح" });
-    db.all("SELECT * FROM instances WHERE user_id = ?", [req.session.userId], (err, rows) => {
+    db.all("SELECT * FROM servers WHERE user_id = ?", [req.session.userId], (err, rows) => {
         res.json(rows || []);
     });
 });
 
-// زر New: إنشاء مثيل جديد لسكربت (Python أو Node.js)
-app.post('/api/instances/new', (req, res) => {
+app.post('/api/servers/create', (req, res) => {
     if (!req.session.userId) return res.status(401).json({ error: "غير مصرح" });
-    const { name, script_type, code } = req.body;
+    const { name, node_type, memory, cpu, code } = req.body;
     
-    const filename = `script_${req.session.userId}_${Date.now()}.${script_type === 'python' ? 'py' : 'js'}`;
-    const filePath = path.join(__dirname, 'scripts', filename);
+    const ext = node_type === 'python' ? 'py' : 'js';
+    const filename = `server_${req.session.userId}_${Date.now()}.${ext}`;
+    const scriptsDir = path.join(__dirname, 'instances');
     
-    if (!fs.existsSync(path.join(__dirname, 'scripts'))) {
-        fs.mkdirSync(path.join(__dirname, 'scripts'));
+    if (!fs.existsSync(scriptsDir)) {
+        fs.mkdirSync(scriptsDir, { recursive: true });
     }
     
-    fs.writeFileSync(filePath, code || (script_type === 'python' ? 'print("Vanta Python Active")' : 'console.log("Vanta Node Active");'));
+    const defaultCode = code || (ext === 'py' ? 'import time\nwhile True:\n    print("Vanta Node Engine Active...")\n    time.sleep(2)' : 'setInterval(() => { console.log("Vanta Server Core Running..."); }, 2000);');
+    fs.writeFileSync(path.join(scriptsDir, filename), defaultCode);
 
-    db.run("INSERT INTO instances (user_id, name, script_type, filename, status) VALUES (?, ?, ?, ?, ?)",
-        [req.session.userId, name, script_type, filename, 'stopped'], function(err) {
+    db.run("INSERT INTO servers (user_id, name, node_type, memory, cpu, status, filename) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [req.session.userId, name || 'Vanta-Instance', node_type || 'node', memory || '1024MB', cpu || '100%', 'offline', filename], function(err) {
             if (err) return res.status(500).json({ error: err.message });
-            res.json({ success: true, id: this.lastID });
+            res.json({ success: true, serverId: this.lastID });
         }
     );
 });
 
-// تشغيل السكربت ومراقبة المخرجات
-app.post('/api/instances/:id/start', (req, res) => {
+app.post('/api/servers/:id/power', (req, res) => {
     if (!req.session.userId) return res.status(401).json({ error: "غير مصرح" });
-    const instanceId = req.params.id;
+    const serverId = req.params.id;
+    const { action } = req.body;
 
-    db.get("SELECT * FROM instances WHERE id = ? AND user_id = ?", [instanceId, req.session.userId], (err, inst) => {
-        if (err || !inst) return res.status(404).json({ error: "المثيل غير موجود" });
+    db.get("SELECT * FROM servers WHERE id = ? AND user_id = ?", [serverId, req.session.userId], (err, srv) => {
+        if (err || !srv) return res.status(404).json({ error: "السيرفر غير موجود" });
 
-        if (activeProcesses[instanceId]) {
-            return res.json({ success: true, message: "السكربت يعمل بالفعل" });
+        if (action === 'start') {
+            if (activeProcesses[serverId]) return res.json({ success: true, message: "السيرفر يعمل بالفعل" });
+
+            const filePath = path.join(__dirname, 'instances', srv.filename);
+            const cmd = srv.node_type === 'python' ? 'python3' : 'node';
+            
+            const proc = spawn(cmd, [filePath], { cwd: path.join(__dirname, 'instances') });
+            activeProcesses[serverId] = { proc, buffer: [] };
+
+            const broadcastLog = (data) => {
+                const msg = data.toString();
+                activeProcesses[serverId].buffer.push(msg);
+                if (activeProcesses[serverId].buffer.length > 500) activeProcesses[serverId].buffer.shift();
+                
+                wss.clients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN && client.serverId === serverId) {
+                        client.send(JSON.stringify({ type: 'log', data: msg }));
+                    }
+                });
+            };
+
+            proc.stdout.on('data', broadcastLog);
+            proc.stderr.on('data', broadcastLog);
+
+            proc.on('close', (code) => {
+                broadcastLog(`\n[Vanta Daemon] Process exited with status code ${code}\n`);
+                db.run("UPDATE servers SET status = 'offline' WHERE id = ?", [serverId]);
+                delete activeProcesses[serverId];
+                wss.clients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN && client.serverId === serverId) {
+                        client.send(JSON.stringify({ type: 'status', status: 'offline' }));
+                    }
+                });
+            });
+
+            db.run("UPDATE servers SET status = 'online' WHERE id = ?", [serverId], () => {
+                res.json({ success: true, status: 'online' });
+            });
+
+        } else if (action === 'stop' || action === 'kill') {
+            if (activeProcesses[serverId]) {
+                activeProcesses[serverId].proc.kill('SIGKILL');
+                delete activeProcesses[serverId];
+            }
+            db.run("UPDATE servers SET status = 'offline' WHERE id = ?", [serverId], () => {
+                res.json({ success: true, status: 'offline' });
+            });
         }
-
-        const filePath = path.join(__dirname, 'scripts', inst.filename);
-        const command = inst.script_type === 'python' ? 'python3' : 'node';
-
-        const proc = spawn(command, [filePath]);
-        activeProcesses[instanceId] = { proc, logs: [] };
-
-        proc.stdout.on('data', (data) => {
-            activeProcesses[instanceId].logs.push(data.toString());
-        });
-
-        proc.stderr.on('data', (data) => {
-            activeProcesses[instanceId].logs.push(`[ERROR] ${data.toString()}`);
-        });
-
-        proc.on('close', (code) => {
-            activeProcesses[instanceId].logs.push(`[INFO] Process exited with code ${code}`);
-            delete activeProcesses[instanceId];
-        });
-
-        db.run("UPDATE instances SET status = 'running' WHERE id = ?", [instanceId]);
-        res.json({ success: true });
     });
 });
 
-// إيقاف السكربت
-app.post('/api/instances/:id/stop', (req, res) => {
-    if (!req.session.userId) return res.status(401).json({ error: "غير مصرح" });
-    const instanceId = req.params.id;
-
-    if (activeProcesses[instanceId]) {
-        activeProcesses[instanceId].proc.kill();
-        delete activeProcesses[instanceId];
-    }
-
-    db.run("UPDATE instances SET status = 'stopped' WHERE id = ?", [instanceId], () => {
-        res.json({ success: true });
+wss.on('connection', (ws, req) => {
+    ws.on('message', (message) => {
+        try {
+            const parsed = JSON.parse(message);
+            if (parsed.action === 'subscribe') {
+                ws.serverId = parsed.serverId;
+                if (activeProcesses[parsed.serverId]) {
+                    ws.send(JSON.stringify({ type: 'history', data: activeProcesses[parsed.serverId].buffer.join('') }));
+                }
+            } else if (parsed.action === 'command' && parsed.serverId) {
+                if (activeProcesses[parsed.serverId] && activeProcesses[parsed.serverId].proc.stdin) {
+                    activeProcesses[parsed.serverId].proc.stdin.write(parsed.command + '\n');
+                }
+            }
+        } catch (e) {}
     });
 });
 
-// جلب السجلات الحية (Live Console Logs)
-app.get('/api/instances/:id/logs', (req, res) => {
-    if (!req.session.userId) return res.status(401).json({ error: "غير مصرح" });
-    const instanceId = req.params.id;
-    const logs = activeProcesses[instanceId] ? activeProcesses[instanceId].logs.join('') : "العملية متوقفة حالياً.";
-    res.json({ logs });
-});
-
-app.listen(PORT, () => {
-    console.log(`[VantaPanel] Running on port ${PORT}`);
+server.listen(PORT, () => {
+    console.log(`[Vanta Enterprise Core] Running on port ${PORT}`);
 });
