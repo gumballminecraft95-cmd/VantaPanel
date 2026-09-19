@@ -1,7 +1,7 @@
 {
-  "name": "vanta-panel",
-  "version": "1.0.0",
-  "description": "Custom Control Panel for WORM",
+  "name": "vanta-enterprise-panel",
+  "version": "2.0.0",
+  "description": "Advanced Enterprise Hosting Panel for WORM",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -10,6 +10,7 @@
     "express": "^4.19.2",
     "express-session": "^1.18.0",
     "bcrypt": "^5.1.1",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "ws": "^8.16.0"
   }
 }
